@@ -287,6 +287,11 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
         return mBinding.ijk;
     }
 
+    private Drawable getDefaultArtwork() {
+        if (mPlayers.isExo()) return getExo().getDefaultArtwork();
+        return getIjk().getDefaultArtwork();
+    }
+
     private BaseGridView getEpisodeView() {
         return Setting.getEpisode() == 0 ? mBinding.episodeHori : mBinding.episodeVert;
     }
@@ -450,7 +455,7 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
     }
 
     private void setVideoView() {
-        mPlayers.set(getExo(), getIjk());
+        mPlayers.init(getExo(), getIjk());
         mBinding.control.reset.setText(ResUtil.getStringArray(R.array.select_reset)[Setting.getReset()]);
     }
 
@@ -688,7 +693,7 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
             if (length > episodeNameLength) episodeNameLength = length;
         }
         int numColumns = 10;
-        if (episodeNameLength > 60) numColumns = 1;
+        if (episodeNameLength > 40) numColumns = 1;
         if (episodeNameLength > 30) numColumns = 2;
         else if (episodeNameLength > 15) numColumns = 3;
         else if (episodeNameLength > 10) numColumns = 4;
@@ -1072,9 +1077,9 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
 
     private void onDecode(boolean save) {
         mPlayers.toggleDecode(save);
-        mPlayers.set(getExo(), getIjk());
+        mPlayers.init(getExo(), getIjk());
+        mPlayers.setMediaSource();
         setDecodeView();
-        onRefresh();
     }
 
     private void onTrack(View view) {
@@ -1421,16 +1426,22 @@ public class VideoActivity extends BaseActivity implements CustomKeyDownVod.List
         String title = mHistory.getVodName();
         String episode = getEpisode().getName();
         String artist = title.equals(episode) ? "" : getString(R.string.play_now, episode);
-        mPlayers.setMetadata(title, artist, mHistory.getVodPic());
+        mPlayers.setMetadata(title, artist, mHistory.getVodPic(), getDefaultArtwork());
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onErrorEvent(ErrorEvent event) {
         if (isBackground()) return;
         if (addErrorCount() > 20) onErrorEnd(event);
-        else if (event.isDecode() && mPlayers.canToggleDecode()) onDecode(false);
         else if (mPlayers.addRetry() > event.getRetry()) checkError(event);
+        else if (event.isDecode() && mPlayers.canToggleDecode()) onDecode(false);
+        else if (event.isFormat() && mPlayers.isExo()) onErrorFormat(event);
         else onRefresh();
+    }
+
+    private void onErrorFormat(ErrorEvent event) {
+        mPlayers.setFormat(ExoUtil.getMimeType(event.getCode()));
+        mPlayers.setMediaSource();
     }
 
     private void checkError(ErrorEvent event) {
